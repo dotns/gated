@@ -40,18 +40,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
 
-      - name: Verify published source is current main
+      - name: Verify published source is in main history
         if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          current="$(curl --fail --silent --show-error --max-time 20 --config - \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main" \
-            < <(printf 'header = "Authorization: Bearer %s"\n' "$GH_TOKEN") \
-            | jq -er '.commit.sha // .commit.id')"
-          test "$GITHUB_SHA" = "$current"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
 
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -153,18 +148,19 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=schedule
 
-      - name: Verify published source is current main
+      - name: Check out the release source
         if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Verify published source is in main history
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
           set -euo pipefail
-          current="$(curl --fail --silent --show-error --max-time 20 --config - \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/branches/main" \
-            < <(printf 'header = "Authorization: Bearer %s"\n' "$GH_TOKEN") \
-            | jq -er '.commit.sha // .commit.id')"
-          test "$GITHUB_SHA" = "$current"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
 
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
